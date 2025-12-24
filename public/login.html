@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <title>Bölge Müdürü Girişi</title>
+    <style>
+        body { font-family: Arial; background: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-card { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); text-align: center; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; }
+        button { background: #e74c3c; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2 style="color: #2c3e50;">Ege Bölge Müdürlüğü<br>Lojistik Yönetimi</h2>
+        <input type="text" id="user" placeholder="Kullanıcı Adı (admin)">
+        <input type="password" id="pass" placeholder="Şifre (1234)">
+        <button onclick="login()">Sisteme Giriş Yap</button>
+    </div>
+
+    <script>
+        function login() {
+            const user = document.getElementById('user').value;
+            const pass = document.getElementById('pass').value;
+            if(user === 'admin' && pass === '1234') {
+               function login() {
+    const user = document.getElementById('user').value;
+    const pass = document.getElementById('pass').value;
+    
+    if(user === 'admin' && pass === '1234') {
+    
+        window.location.href = "/index.html"; 
+    } else {
+        alert('Hatalı kullanıcı adı veya şifre');
+    }
+} else {
+                alert('Hatalı giriş yapıldı!');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>GoldChain DSS v16 | Canlı Veritabanı Entegrasyonu</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --primary: #e74c3c; --sidebar-bg: #1a252f; --bg: #f0f3f6; --success: #27ae60; --warning: #f39c12; --accent: #3498db; --operation: #8e44ad; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: var(--bg); overflow: hidden; }
+        .sidebar { width: 400px; background: var(--sidebar-bg); color: white; display: flex; flex-direction: column; z-index: 1001; box-shadow: 5px 0 15px rgba(0,0,0,0.3); }
+        .sidebar-header { padding: 25px; background: #0d141b; text-align: center; border-bottom: 4px solid var(--primary); }
+        .scroll-area { flex: 1; overflow-y: auto; padding: 15px; }
+        .menu-section { margin-bottom: 10px; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .menu-title { padding: 12px 18px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 600; }
+        .menu-content { display: none; padding: 15px; background: #2c3e50; border-top: 1px solid rgba(255,255,255,0.1); }
+        .menu-content.active { display: block; }
+        .bg-dash { background: linear-gradient(45deg, #2980b9, #3498db); }
+        .bg-update { background: linear-gradient(45deg, #8e44ad, #9b59b6); }
+        .bg-prod { background: linear-gradient(45deg, #16a085, #1abc9c); }
+        .bg-sim { background: linear-gradient(45deg, #34495e, #2c3e50); }
+        .bg-route { background: linear-gradient(45deg, #f39c12, #e67e22); }
+        .bg-ware { background: linear-gradient(45deg, #27ae60, #2ecc71); }
+        .bg-cost { background: linear-gradient(45deg, #7f8c8d, #34495e); }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; font-size: 10px; color: #bdc3c7; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border-radius: 4px; border: none; background: #3e5871; color: white; box-sizing: border-box; }
+        .btn-calc { width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 5px; }
+        .plate { background: #fff; color: #000; padding: 2px 5px; border-radius: 3px; font-weight: bold; font-family: monospace; border: 1px solid #000; }
+        .main-view { flex: 1; display: flex; flex-direction: column; overflow-y: auto; position: relative; }
+        .top-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; padding: 20px; }
+        .stat-card { background: white; padding: 15px; border-radius: 12px; display: flex; align-items: center; gap: 12px; border-left: 5px solid var(--accent); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        #map { height: 400px; width: 95%; margin: 0 auto; border-radius: 15px; border: 1px solid #ddd; }
+        .weather-box { position: absolute; top: 115px; right: 45px; background: white; padding: 8px 15px; border-radius: 20px; z-index: 1000; border: 1px solid var(--primary); font-size: 13px; font-weight: bold; }
+        .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; }
+        .chart-card { background: white; padding: 15px; border-radius: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); text-align: center; }
+        .product-item { padding: 10px; margin-bottom: 5px; border-radius: 5px; background: #34495e; display: flex; justify-content: space-between; font-size: 13px; align-items: center; }
+        .product-item.active { border-left: 4px solid var(--success); }
+        .product-item.passive { opacity: 0.5; color: #95a5a6; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="sidebar-header"><h2>GOLDCHAIN</h2><small>DSS LIVE ENGINE</small></div>
+        <div class="scroll-area">
+            <div class="menu-section bg-dash" onclick="resetToDashboard()"><div class="menu-title"><span>DASHBOARD ANA SAYFA</span><i class="fas fa-sync"></i></div></div>
+            
+            <div class="menu-section bg-update"><div class="menu-title" onclick="toggleMenu('updateMenu')"><span>MAL KABUL (STOK GİRİŞİ)</span><i class="fas fa-edit"></i></div><div id="updateMenu" class="menu-content">
+                <div class="form-group"><label>Depo Seçin</label><select id="updateDepoId" class="route-sel"></select></div>
+                <div class="form-group"><label>Miktar (Ton)</label><input type="number" id="updateAmount" value="5"></div>
+                <button onclick="applyRealStockUpdate()" class="btn-calc" style="background:var(--success)">SİSTEME KAYDET</button>
+            </div></div>
+
+            <div class="menu-section bg-prod"><div class="menu-title" onclick="toggleMenu('prodMenu')"><span>ÜRÜN ÇEŞİTLERİ</span><i class="fas fa-angle-down"></i></div><div id="prodMenu" class="menu-content">
+                <div class="product-item active"><span>🍎 Soğuk Gıda</span> <b>AKTİF</b></div>
+                <div class="product-item passive"><span>💊 Tıbbi Ürünler</span> <b>PASİF</b></div>
+                <div class="product-item passive"><span>🧪 Kimyasal</span> <b>PASİF</b></div>
+            </div></div>
+
+            <div class="menu-section bg-sim"><div class="menu-title" onclick="toggleMenu('simMenu')"><span>KAPASİTE SİMÜLASYONU</span><i class="fas fa-angle-down"></i></div><div id="simMenu" class="menu-content">
+                <div class="form-group"><label>Depo</label><select id="simDepoSelect" onchange="updateDashboardById(this.value)"></select></div>
+                <div class="form-group"><label>Gelecek Miktar</label><input type="number" id="incomingAmount" value="0" oninput="runCapacitySimulation()"></div>
+                <div style="font-size:11px; background:#1a252f; padding:8px; border-radius:5px;">Kalan Boş: <b id="resRem">--</b></div>
+            </div></div>
+
+            <div class="menu-section bg-route"><div class="menu-title" onclick="toggleMenu('routeMenu')"><span>ROTA OPTİMİZASYONU</span><i class="fas fa-angle-down"></i></div><div id="routeMenu" class="menu-content">
+                <div class="form-group"><label>Kalkış</label><select id="routeStart" class="route-sel"></select></div>
+                <div class="form-group"><label>Varış</label><select id="routeEnd" class="route-sel"></select></div>
+                <button onclick="drawEfficientRoute()" class="btn-calc" style="background:#2c3e50">ROTAYI ÇİZ</button>
+            </div></div>
+
+            <div class="menu-section bg-ware"><div class="menu-title" onclick="toggleMenu('wareMenu')"><span>DEPO ENVANTER LİSTESİ</span><i class="fas fa-angle-down"></i></div><div id="wareMenu" class="menu-content"><div id="depoContainer"></div></div></div>
+            
+            <div class="menu-section bg-cost"><div class="menu-title" onclick="toggleMenu('costMenu')"><span>MALİYET ANALİZİ</span><i class="fas fa-angle-down"></i></div><div id="costMenu" class="menu-content">
+                <div class="form-group"><label>Mesafe (km)</label><input type="number" id="distance" value="100"></div>
+                <button onclick="calculateFinalCost()" class="btn-calc">HESAPLA</button>
+                <div id="finalPrice" style="text-align:center; font-size:18px; margin-top:10px; font-weight:bold; color:var(--warning);">0 ₺</div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="main-view">
+        <div class="top-stats">
+            <div class="stat-card"><i class="fas fa-city"></i><div><b id="totalWh">--</b><span>Depo Sayısı</span></div></div>
+            <div class="stat-card"><i class="fas fa-weight-hanging"></i><div><b id="totalStock">--</b><span>Toplam Stok</span></div></div>
+            <div class="stat-card"><b>14.2 ₺</b><span>Yakıt/km</span></div>
+            <div class="stat-card" style="border-left-color: var(--success);"><b>Online</b><span>Veritabanı</span></div>
+        </div>
+        <div style="position: relative;"><div id="map"></div><div class="weather-box"><i class="fas fa-sun" style="color:var(--warning)"></i> <span id="wCity">Bölge Geneli</span> | <span id="wTemp">22°C</span></div></div>
+        <div class="bottom-grid">
+            <div class="chart-card"><h4>Kapasite Durumu</h4><canvas id="capChart"></canvas></div>
+            <div class="chart-card"><h4>Enerji Tüketimi (kWh)</h4><canvas id="energyChart"></canvas></div>
+            <div class="chart-card"><h4>Mesafe / Maliyet</h4><canvas id="distChart"></canvas></div>
+            <div class="chart-card"><h4>Envanter Dağılımı</h4><canvas id="invChart"></canvas></div>
+        </div>
+    </div>
+
+    <script>
+        let map, chart1, chart2, chart3, chart4, allDepolar = [], selectedDepo = null, routeLine = null;
+
+        async function init() {
+            try {
+                // CANLI VERİ BURADAN ÇEKİLİYOR
+                const res = await fetch('/api/depolar');
+                allDepolar = await res.json();
+                
+                map = L.map('map').setView([38.42, 28.1], 7.5);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                
+                setupSelects(); renderDepoList();
+                allDepolar.forEach(d => L.marker([d.enlem, d.boylam]).addTo(map).on('click', () => updateDashboard(d)));
+                
+                startFleet(allDepolar); 
+                resetToDashboard();
+            } catch (err) { alert("Veritabanına bağlanılamadı!"); }
+        }
+
+        async function applyRealStockUpdate() {
+            const id = document.getElementById('updateDepoId').value;
+            const miktar = parseFloat(document.getElementById('updateAmount').value);
+            const res = await fetch('/api/stok-guncelle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id, miktar })
+            });
+            const result = await res.json();
+            if(res.status === 400) alert("⛔ REDDEDİLDİ: " + result.error);
+            else { alert("✅ BAŞARILI: " + result.message); location.reload(); }
+        }
+
+        function resetToDashboard() {
+            selectedDepo = null; if(routeLine) map.removeLayer(routeLine);
+            let tCap = 0, tStock = 0;
+            allDepolar.forEach(d => { tCap += parseFloat(d.toplam_kapasite_ton); tStock += parseFloat(d.mevcut_stok_ton); });
+            document.getElementById('totalWh').innerText = allDepolar.length;
+            document.getElementById('totalStock').innerText = tStock.toFixed(0) + " T";
+            document.getElementById('wCity').innerText = "Ege Bölge Geneli";
+            updateCharts(tStock, tCap, tStock * 12.5);
+            if(chart3) chart3.destroy();
+        }
+
+        function updateDashboard(depo) {
+            selectedDepo = depo;
+            document.getElementById('wCity').innerText = depo.il_adi;
+            document.getElementById('simDepoSelect').value = depo.id;
+            const energy = depo.mevcut_stok_ton * 12.5;
+            updateCharts(depo.mevcut_stok_ton, depo.toplam_kapasite_ton, energy);
+            if(document.getElementById('simMenu').classList.contains('active')) runCapacitySimulation();
+        }
+
+        function updateCharts(cur, tot, energy) {
+            const ctx1 = document.getElementById('capChart').getContext('2d');
+            if(chart1) chart1.destroy();
+            chart1 = new Chart(ctx1, { type: 'doughnut', data: { labels: ['Dolu', 'Boş'], datasets: [{ data: [cur, tot - cur], backgroundColor: ['#e74c3c', '#2ecc71'] }] } });
+
+            const ctx2 = document.getElementById('energyChart').getContext('2d');
+            if(chart2) chart2.destroy();
+            chart2 = new Chart(ctx2, { type: 'bar', data: { labels: ['Soğutma', 'Sistem'], datasets: [{ label: 'kWh', data: [energy, energy*0.2], backgroundColor: ['#2ecc71', '#f1c40f'] }] } });
+
+            const ctx4 = document.getElementById('invChart').getContext('2d');
+            if(chart4) chart4.destroy();
+            chart4 = new Chart(ctx4, { type: 'bar', data: { labels: allDepolar.map(d => d.il_adi), datasets: [{ label: 'Stok (Ton)', data: allDepolar.map(d => d.mevcut_stok_ton), backgroundColor: '#3498db' }] } });
+        }
+
+        function runCapacitySimulation() {
+            if(!selectedDepo) return;
+            const inc = parseFloat(document.getElementById('incomingAmount').value) || 0;
+            const cur = parseFloat(selectedDepo.mevcut_stok_ton), tot = parseFloat(selectedDepo.toplam_kapasite_ton);
+            const rem = tot - (cur + inc);
+            document.getElementById('resRem').innerText = rem.toFixed(1) + " T";
+            const ctx = document.getElementById('capChart').getContext('2d');
+            if(chart1) chart1.destroy();
+            chart1 = new Chart(ctx, { type: 'doughnut', data: { labels: ['Mevcut', 'Gelecek', 'Kalan Boş'], datasets: [{ data: [cur, inc, rem>0?rem:0], backgroundColor: ['#e74c3c', '#f39c12', '#2ecc71'] }] } });
+        }
+
+        function calculateFinalCost() {
+            const d = document.getElementById('distance').value;
+            const total = d * 15 * 1.18;
+            document.getElementById('finalPrice').innerText = total.toLocaleString('tr-TR') + " ₺";
+            const ctx = document.getElementById('distChart').getContext('2d');
+            if(chart3) chart3.destroy();
+            chart3 = new Chart(ctx, { type: 'bar', data: { labels: ['Maliyet', 'CO2'], datasets: [{ label: 'Analiz', data: [total, d*4.2], backgroundColor: ['#34495e', '#27ae60'] }] } });
+        }
+
+        function drawEfficientRoute() {
+            if(routeLine) map.removeLayer(routeLine);
+            const sId = document.getElementById('routeStart').value;
+            const eId = document.getElementById('routeEnd').value;
+            const s = allDepolar.find(x => x.id == sId);
+            const e = allDepolar.find(x => x.id == eId);
+            if(s && e) { routeLine = L.polyline([[s.enlem, s.boylam], [e.enlem, e.boylam]], {color: 'green', weight: 5}).addTo(map); map.fitBounds(routeLine.getBounds()); }
+        }
+
+        function toggleMenu(id) { 
+            const el = document.getElementById(id);
+            if(id === 'simMenu' && el.classList.contains('active')) {
+                document.getElementById('incomingAmount').value = 0;
+                if(selectedDepo) updateDashboard(selectedDepo); else resetToDashboard();
+            }
+            el.classList.toggle('active'); 
+        }
+
+        function setupSelects() {
+            const opts = allDepolar.map(d => `<option value="${d.id}">${d.il_adi}</option>`).join('');
+            document.querySelectorAll('.route-sel, #simDepoSelect').forEach(s => s.innerHTML = opts);
+        }
+        function renderDepoList() {
+            document.getElementById('depoContainer').innerHTML = allDepolar.map(d => `<div style="background:#1a252f; padding:8px; margin-bottom:5px; border-radius:5px; cursor:pointer;" onclick="updateDashboardById(${d.id})"><b>${d.il_adi}</b><br><small>%${((d.mevcut_stok_ton/d.toplam_kapasite_ton)*100).toFixed(0)} Dolu</small></div>`).join('');
+        }
+        function updateDashboardById(id) { const d = allDepolar.find(x => x.id == id); if(d) updateDashboard(d); }
+        function startFleet(depolar) {
+            const icon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/3421/3421118.png', iconSize: [30, 30] });
+            ["35 A 001", "35 A 002", "35 A 003"].forEach((p, i) => {
+                let s = depolar[i % depolar.length], e = depolar[(i+2) % depolar.length];
+                let m = L.marker([s.enlem, s.boylam], {icon: icon}).addTo(map);
+                let t = 0; setInterval(() => { t += 0.002; if(t > 1) t = 0; m.setLatLng([s.enlem+(e.enlem-s.enlem)*t, s.boylam+(e.boylam-s.boylam)*t]); }, 100);
+            });
+        }
+        init();
+    </script>
+</body>
+</html>
